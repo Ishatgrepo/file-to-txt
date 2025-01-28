@@ -19,9 +19,10 @@ async def handle_file(update: Update, context):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     # Download the file
-    file_path = f"{file.file_name}"
+    file_path = f"./{file.file_name}"
     try:
-        await file.get_file().download_to_drive(file_path)
+        telegram_file = await context.bot.get_file(file.file_id)  # Get the file object
+        await telegram_file.download_to_drive(file_path)  # Download the file locally
     except Exception as e:
         await update.message.reply_text(f"❌ Failed to download the file: {str(e)}")
         return
