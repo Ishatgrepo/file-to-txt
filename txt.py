@@ -7,7 +7,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 async def start(update: Update, context):
     await update.message.reply_text(
         "👋 Hi! I'm your bot.\n\n"
-        "📄 Send me any file, and I'll extract its text content and send it back to you in chunks with a 5-second delay between messages!"
+        "📄 Send me any file, and I'll extract its text content and send it back to you in chunks with a 5-second delay between messages!\n"
+        "📊 After processing, I'll also show the number of lines and words in the file."
     )
 
 # Function to handle file uploads
@@ -39,6 +40,16 @@ async def handle_file(update: Update, context):
     # Send the content back to the user in chunks
     if content.strip():
         await send_large_text(update, context, content)
+
+        # Calculate and display the number of lines and words
+        num_lines = len(content.splitlines())
+        num_words = len(content.split())
+        await update.message.reply_text(
+            f"✅ File processed successfully!\n\n"
+            f"📄 **Statistics:**\n"
+            f"- **Lines:** {num_lines}\n"
+            f"- **Words:** {num_words}"
+        )
     else:
         await update.message.reply_text("❌ The file doesn't contain any readable text.")
 
@@ -76,7 +87,7 @@ async def send_large_text(update: Update, context, text):
 
 # Main function to set up the bot
 def main():
-    bot_token = "8152265435:AAH9ex75KOmXl6lb_M79EAQgUvnPjbfkYUA"  # Replace with your actual bot token
+    bot_token = "8152265435:AAEyz22gisoXyUoY7wpdCN4NLAJNpzGuRag"  # Your bot token
 
     app = ApplicationBuilder().token(bot_token).build()
 
