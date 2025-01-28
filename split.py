@@ -88,7 +88,7 @@ def reboot(update: Update, context: CallbackContext):
 
 # Main function to set up the bot
 def main():
-    updater = Updater("8152265435:AAGlI9uO1EGshFzcLiZIkCB013ZYF9pR5PM", use_context=True)
+    updater = Updater("8152265435:AAFo3fICFb6HwNA396hW09oZjqwQ0mpZgS0", use_context=True)
     dp = updater.dispatcher
 
     # Command handlers
