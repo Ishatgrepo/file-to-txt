@@ -1,5 +1,5 @@
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, filters, CallbackContext
 
 # Define global variables for modes and owner ID
 OWNER_ID = 1094941160
@@ -97,9 +97,9 @@ def main():
     dp.add_handler(CommandHandler("reboot", reboot))
 
     # Message handlers
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
-    dp.add_handler(MessageHandler(Filters.document.mime_type("text/plain"), handle_file))
-    dp.add_handler(MessageHandler(Filters.regex(r"^\d+$"), handle_split_size))
+    dp.add_handler(MessageHandler(filters.text & ~filters.command, handle_text))
+    dp.add_handler(MessageHandler(filters.document.mime_type("text/plain"), handle_file))
+    dp.add_handler(MessageHandler(filters.regex(r"^\d+$"), handle_split_size))
 
     # Start the bot
     updater.start_polling()
