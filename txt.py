@@ -12,7 +12,6 @@ async def start(update: Update, context):
 
 # Function to handle file uploads
 async def handle_file(update: Update, context):
-    # Get the file information
     file: Document = update.message.document
 
     # Show typing indicator while processing
@@ -53,12 +52,23 @@ def extract_text(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
 
+    # Handle other file types (e.g., PDF, DOCX)
+    if file_extension.lower() == ".pdf":
+        from PyPDF2 import PdfReader
+        with open(file_path, 'rb') as f:
+            reader = PdfReader(f)
+            return "\n".join(page.extract_text() for page in reader.pages if page.extract_text())
+
+    if file_extension.lower() in [".docx", ".doc"]:
+        from docx import Document
+        doc = Document(file_path)
+        return "\n".join(paragraph.text for paragraph in doc.paragraphs)
+
     # Handle unsupported file types
-    raise ValueError("Unsupported file type. Please upload a .txt file or a file containing readable text.")
+    raise ValueError("Unsupported file type. Please upload a .txt, .pdf, or .docx file.")
 
 # Function to send large text with a 5-second delay
 async def send_large_text(update: Update, context, text):
-    # Telegram has a 4096-character limit per message
     chunk_size = 4096
     for i in range(0, len(text), chunk_size):
         await update.message.reply_text(text[i:i + chunk_size])
@@ -66,17 +76,13 @@ async def send_large_text(update: Update, context, text):
 
 # Main function to set up the bot
 def main():
-    # Replace 'YOUR_BOT_TOKEN' with your actual bot token
-    bot_token = "8152265435:AAH9ex75KOmXl6lb_M79EAQgUvnPjbfkYUA"
+    bot_token = "8152265435:AAH9ex75KOmXl6lb_M79EAQgUvnPjbfkYUA"  # Replace with your actual bot token
 
-    # Create the bot application
     app = ApplicationBuilder().token(bot_token).build()
 
-    # Add handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
-    # Run the bot
     print("🤖 Bot is running...")
     app.run_polling()
 
