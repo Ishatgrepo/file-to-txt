@@ -1,150 +1,109 @@
-import os
-import asyncio
-from telegram import Update, Document
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ConversationHandler
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Constants for conversation states
-SPLIT_LINES, SPLIT_WORDS = range(2)
+# Define global variables for modes and owner ID
+OWNER_ID = 1094941160
+MODE = "text"  # Default mode is text
+DUMP_GROUP = -1002495370228  # Dump group ID
+SECOND_GROUP = -1002495370228  # Replace with the second group's ID
 
-# Group IDs for logging and dumping
-LOG_GROUP_ID = -1002495370228  # Replace with your log group ID
-DUMP_GROUP_ID = -1002495370228  # Replace with your dump group ID
+# Start command
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("Welcome! Use /setmode to choose between Text Mode and Split Mode.")
 
-# Owner ID for reboot access
-OWNER_ID = 1094941160  # Replace with your Telegram user ID
-
-# Function to handle the /start command
-async def start(update: Update, context):
-    await update.message.reply_text(
-        "👋 Hi! I'm your bot.\n\n"
-        "📄 Send me any file, and I'll extract its text content and send it back to you in chunks with a 5-second delay between messages!\n"
-        "📊 After processing, I'll also show the number of lines and words in the file.\n\n"
-        "🛠️ You can also split a `.txt` file into smaller files by specifying the number of lines or words per file."
-    )
-
-# Function to handle file uploads
-async def handle_file(update: Update, context):
-    file: Document = update.message.document
-
-    # Show typing indicator while processing
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-
-    # Log the file upload to the log group
-    await context.bot.send_message(
-        chat_id=LOG_GROUP_ID,
-        text=f"📥 File received from @{update.effective_user.username or 'unknown'} in chat {update.effective_chat.id}:\n"
-             f"📄 File Name: {file.file_name}\n"
-             f"📦 File Size: {file.file_size} bytes"
-    )
-
-    # Download the file
-    file_path = f"./{file.file_name}"
-    try:
-        telegram_file = await context.bot.get_file(file.file_id)  # Get the file object
-        await telegram_file.download_to_drive(file_path)  # Download the file locally
-    except Exception as e:
-        error_message = f"❌ Failed to download the file: {str(e)}"
-        await update.message.reply_text(error_message)
-        await context.bot.send_message(chat_id=LOG_GROUP_ID, text=error_message)
+# Set mode command
+def set_mode(update: Update, context: CallbackContext):
+    global MODE
+    if len(context.args) == 0:
+        update.message.reply_text("Please specify the mode: 'text' or 'split'.")
         return
 
-    # Check if the file is a .txt file
-    if not file.file_name.endswith(".txt"):
-        await update.message.reply_text("❌ Only `.txt` files are supported for splitting.")
-        os.remove(file_path)  # Clean up the file
+    mode = context.args[0].lower()
+    if mode in ["text", "split"]:
+        MODE = mode
+        update.message.reply_text(f"Mode set to {MODE.capitalize()} Mode.")
+    else:
+        update.message.reply_text("Invalid mode. Please choose 'text' or 'split'.")
+
+# Handle text messages
+def handle_text(update: Update, context: CallbackContext):
+    global MODE
+    text = update.message.text
+
+    if MODE == "text":
+        # Automatically send text to both groups
+        context.bot.send_message(chat_id=SECOND_GROUP, text=text)
+        context.bot.send_message(chat_id=DUMP_GROUP, text=text)  # Auto-forward to dump group
+    elif MODE == "split":
+        update.message.reply_text("Please upload a text file to split.")
+
+# Handle file uploads
+def handle_file(update: Update, context: CallbackContext):
+    global MODE
+    file = update.message.document
+
+    if MODE == "split" and file.mime_type == "text/plain":
+        # Download the file
+        file_path = file.get_file().download()
+
+        # Split the file into parts
+        with open(file_path, "r") as f:
+            content = f.read()
+
+        # Ask user for split size
+        update.message.reply_text("Please specify the number of parts to split the file into.")
+        context.user_data["file_content"] = content
+    else:
+        update.message.reply_text("Please switch to Split Mode to process text files.")
+
+# Handle split size input
+def handle_split_size(update: Update, context: CallbackContext):
+    if "file_content" not in context.user_data:
+        update.message.reply_text("No file content found. Please upload a text file first.")
         return
 
-    # Ask the user how they want to split the file
-    await update.message.reply_text(
-        "📄 How would you like to split the file?\n\n"
-        "1️⃣ Send `/lines <number>` to split by a specific number of lines per file.\n"
-        "2️⃣ Send `/words <number>` to split by a specific number of words per file."
-    )
-
-    # Save the file path in the context for later use
-    context.user_data["file_path"] = file_path
-
-# Function to split the file by lines
-async def split_by_lines(update: Update, context):
     try:
-        num_lines = int(context.args[0])  # Get the number of lines from the command argument
-        file_path = context.user_data.get("file_path")
+        num_parts = int(update.message.text)
+        content = context.user_data["file_content"]
+        lines = content.splitlines()
+        part_size = len(lines) // num_parts
 
-        if not file_path:
-            await update.message.reply_text("❌ No file found to split. Please upload a `.txt` file first.")
-            return
+        # Split the content and send to groups
+        for i in range(num_parts):
+            part = "\n".join(lines[i * part_size:(i + 1) * part_size])
+            context.bot.send_message(chat_id=SECOND_GROUP, text=part)
+            context.bot.send_message(chat_id=DUMP_GROUP, text=part)  # Auto-forward to dump group
 
-        # Split the file into smaller files
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+        update.message.reply_text("File split and sent to groups successfully.")
+    except ValueError:
+        update.message.reply_text("Invalid input. Please enter a valid number.")
 
-        split_files = []
-        for i in range(0, len(lines), num_lines):
-            split_file_path = f"{file_path}_part_{i // num_lines + 1}.txt"
-            with open(split_file_path, "w", encoding="utf-8") as split_file:
-                split_file.writelines(lines[i:i + num_lines])
-            split_files.append(split_file_path)
-
-        # Send the split files to the user
-        for split_file in split_files:
-            await context.bot.send_document(chat_id=update.effective_chat.id, document=open(split_file, "rb"))
-            os.remove(split_file)  # Clean up the split file after sending
-
-        # Clean up the original file
-        os.remove(file_path)
-        await update.message.reply_text("✅ File successfully split by lines and sent to you!")
-    except (IndexError, ValueError):
-        await update.message.reply_text("❌ Please provide a valid number of lines. Example: `/lines 100`")
-    except Exception as e:
-        await update.message.reply_text(f"❌ An error occurred: {str(e)}")
-
-# Function to split the file by words
-async def split_by_words(update: Update, context):
-    try:
-        num_words = int(context.args[0])  # Get the number of words from the command argument
-        file_path = context.user_data.get("file_path")
-
-        if not file_path:
-            await update.message.reply_text("❌ No file found to split. Please upload a `.txt` file first.")
-            return
-
-        # Split the file into smaller files
-        with open(file_path, "r", encoding="utf-8") as f:
-            words = f.read().split()
-
-        split_files = []
-        for i in range(0, len(words), num_words):
-            split_file_path = f"{file_path}_part_{i // num_words + 1}.txt"
-            with open(split_file_path, "w", encoding="utf-8") as split_file:
-                split_file.write(" ".join(words[i:i + num_words]))
-            split_files.append(split_file_path)
-
-        # Send the split files to the user
-        for split_file in split_files:
-            await context.bot.send_document(chat_id=update.effective_chat.id, document=open(split_file, "rb"))
-            os.remove(split_file)  # Clean up the split file after sending
-
-        # Clean up the original file
-        os.remove(file_path)
-        await update.message.reply_text("✅ File successfully split by words and sent to you!")
-    except (IndexError, ValueError):
-        await update.message.reply_text("❌ Please provide a valid number of words. Example: `/words 500`")
-    except Exception as e:
-        await update.message.reply_text(f"❌ An error occurred: {str(e)}")
+# Reboot command (restricted to owner)
+def reboot(update: Update, context: CallbackContext):
+    if update.message.from_user.id == OWNER_ID:
+        update.message.reply_text("Rebooting bot...")
+        # Add your reboot logic here (e.g., restart the script or server)
+    else:
+        update.message.reply_text("You are not authorized to use this command.")
 
 # Main function to set up the bot
 def main():
-    bot_token = "8152265435:AAGlI9uO1EGshFzcLiZIkCB013ZYF9pR5PM"  # Your bot token
+    updater = Updater("8152265435:AAGlI9uO1EGshFzcLiZIkCB013ZYF9pR5PM", use_context=True)
+    dp = updater.dispatcher
 
-    app = ApplicationBuilder().token(bot_token).build()
+    # Command handlers
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("setmode", set_mode))
+    dp.add_handler(CommandHandler("reboot", reboot))
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
-    app.add_handler(CommandHandler("lines", split_by_lines))
-    app.add_handler(CommandHandler("words", split_by_words))
+    # Message handlers
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
+    dp.add_handler(MessageHandler(Filters.document.mime_type("text/plain"), handle_file))
+    dp.add_handler(MessageHandler(Filters.regex(r"^\d+$"), handle_split_size))
 
-    print("🤖 Bot is running...")
-    app.run_polling()
+    # Start the bot
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
