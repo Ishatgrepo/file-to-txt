@@ -67,7 +67,7 @@ async def send_large_text(update: Update, context, text):
 # Main function to set up the bot
 def main():
     # Replace 'YOUR_BOT_TOKEN' with your actual bot token
-    bot_token = "YOUR_BOT_TOKEN"
+    bot_token = "8152265435:AAH9ex75KOmXl6lb_M79EAQgUvnPjbfkYUA"
 
     # Create the bot application
     app = ApplicationBuilder().token(bot_token).build()
