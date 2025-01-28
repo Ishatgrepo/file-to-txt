@@ -1,5 +1,5 @@
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, filters , CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Define global variables for modes and owner ID
 OWNER_ID = 1094941160
@@ -8,58 +8,58 @@ DUMP_GROUP = -1002495370228  # Dump group ID
 SECOND_GROUP = -1002495370228  # Replace with the second group's ID
 
 # Start command
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Welcome! Use /setmode to choose between Text Mode and Split Mode.")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome! Use /setmode to choose between Text Mode and Split Mode.")
 
 # Set mode command
-def set_mode(update: Update, context: CallbackContext):
+async def set_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global MODE
     if len(context.args) == 0:
-        update.message.reply_text("Please specify the mode: 'text' or 'split'.")
+        await update.message.reply_text("Please specify the mode: 'text' or 'split'.")
         return
 
     mode = context.args[0].lower()
     if mode in ["text", "split"]:
         MODE = mode
-        update.message.reply_text(f"Mode set to {MODE.capitalize()} Mode.")
+        await update.message.reply_text(f"Mode set to {MODE.capitalize()} Mode.")
     else:
-        update.message.reply_text("Invalid mode. Please choose 'text' or 'split'.")
+        await update.message.reply_text("Invalid mode. Please choose 'text' or 'split'.")
 
 # Handle text messages
-def handle_text(update: Update, context: CallbackContext):
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global MODE
     text = update.message.text
 
     if MODE == "text":
         # Automatically send text to both groups
-        context.bot.send_message(chat_id=SECOND_GROUP, text=text)
-        context.bot.send_message(chat_id=DUMP_GROUP, text=text)  # Auto-forward to dump group
+        await context.bot.send_message(chat_id=SECOND_GROUP, text=text)
+        await context.bot.send_message(chat_id=DUMP_GROUP, text=text)  # Auto-forward to dump group
     elif MODE == "split":
-        update.message.reply_text("Please upload a text file to split.")
+        await update.message.reply_text("Please upload a text file to split.")
 
 # Handle file uploads
-def handle_file(update: Update, context: CallbackContext):
+async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global MODE
     file = update.message.document
 
     if MODE == "split" and file.mime_type == "text/plain":
         # Download the file
-        file_path = file.get_file().download()
+        file_path = await file.get_file().download()
 
         # Split the file into parts
         with open(file_path, "r") as f:
             content = f.read()
 
         # Ask user for split size
-        update.message.reply_text("Please specify the number of parts to split the file into.")
+        await update.message.reply_text("Please specify the number of parts to split the file into.")
         context.user_data["file_content"] = content
     else:
-        update.message.reply_text("Please switch to Split Mode to process text files.")
+        await update.message.reply_text("Please switch to Split Mode to process text files.")
 
 # Handle split size input
-def handle_split_size(update: Update, context: CallbackContext):
+async def handle_split_size(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "file_content" not in context.user_data:
-        update.message.reply_text("No file content found. Please upload a text file first.")
+        await update.message.reply_text("No file content found. Please upload a text file first.")
         return
 
     try:
@@ -71,39 +71,37 @@ def handle_split_size(update: Update, context: CallbackContext):
         # Split the content and send to groups
         for i in range(num_parts):
             part = "\n".join(lines[i * part_size:(i + 1) * part_size])
-            context.bot.send_message(chat_id=SECOND_GROUP, text=part)
-            context.bot.send_message(chat_id=DUMP_GROUP, text=part)  # Auto-forward to dump group
+            await context.bot.send_message(chat_id=SECOND_GROUP, text=part)
+            await context.bot.send_message(chat_id=DUMP_GROUP, text=part)  # Auto-forward to dump group
 
-        update.message.reply_text("File split and sent to groups successfully.")
+        await update.message.reply_text("File split and sent to groups successfully.")
     except ValueError:
-        update.message.reply_text("Invalid input. Please enter a valid number.")
+        await update.message.reply_text("Invalid input. Please enter a valid number.")
 
 # Reboot command (restricted to owner)
-def reboot(update: Update, context: CallbackContext):
+async def reboot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id == OWNER_ID:
-        update.message.reply_text("Rebooting bot...")
+        await update.message.reply_text("Rebooting bot...")
         # Add your reboot logic here (e.g., restart the script or server)
     else:
-        update.message.reply_text("You are not authorized to use this command.")
+        await update.message.reply_text("You are not authorized to use this command.")
 
 # Main function to set up the bot
 def main():
-    updater = Updater("8152265435:AAFo3fICFb6HwNA396hW09oZjqwQ0mpZgS0", use_context=True)
-    dp = updater.dispatcher
+    application = Application.builder().token("8152265435:AAFo3fICFb6HwNA396hW09oZjqwQ0mpZgS0").build()
 
     # Command handlers
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("setmode", set_mode))
-    dp.add_handler(CommandHandler("reboot", reboot))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("setmode", set_mode))
+    application.add_handler(CommandHandler("reboot", reboot))
 
     # Message handlers
-    dp.add_handler(MessageHandler(filters.text & ~filters.command, handle_text))
-    dp.add_handler(MessageHandler(filters.document.mime_type("text/plain"), handle_file))
-    dp.add_handler(MessageHandler(filters.regex(r"^\d+$"), handle_split_size))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    application.add_handler(MessageHandler(filters.Document.MimeType("text/plain"), handle_file))
+    application.add_handler(MessageHandler(filters.Regex(r"^\d+$"), handle_split_size))
 
     # Start the bot
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
