@@ -137,7 +137,7 @@ async def reboot(update: Update, context):
 
 # Main function to set up the bot
 def main():
-    bot_token = "8152265435:AAH9ZV4X8iCHyz31hgLwHCw_vqvHCs2akgE"  # Your bot token
+    bot_token = "7581054354:AAEQ6d4DaAPBZ0MN72TOBPbeDgzAoSGw3FA"  # Your bot token
 
     app = ApplicationBuilder().token(bot_token).build()
 
