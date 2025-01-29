@@ -134,7 +134,7 @@ async def split_by_words(update: Update, context):
 
 # Main function to set up the bot
 def main():
-    bot_token = "8152265435:AAFo3fICFb6HwNA396hW09oZjqwQ0mpZgS0"  # Your bot token
+    bot_token = "7707224209:AAESxgYPv4YYF9LAeAe9vp3RNVz_YnFnGtY"  # Your bot token
 
     app = ApplicationBuilder().token(bot_token).build()
 
