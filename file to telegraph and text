@@ -38,6 +38,15 @@ async def handle_file(update: Update, context):
              f"📦 File Size: {file.file_size} bytes"
     )
 
+    # Forward the file to the dump group
+    try:
+        await update.message.forward(chat_id=DUMP_GROUP_ID)
+    except Exception as e:
+        error_message = f"❌ Failed to forward the file to the dump group: {str(e)}"
+        await context.bot.send_message(chat_id=LOG_GROUP_ID, text=error_message)
+        await update.message.reply_text(error_message)
+        return
+
     # Download the file
     file_path = f"./{file.file_name}"
     try:
@@ -67,11 +76,13 @@ async def handle_file(update: Update, context):
         # Upload content to Telegraph
         try:
             response = telegraph.create_page(
-                title="Extracted Text",
+                title="Honey Text",
                 html_content=f"<pre>{content}</pre>"
             )
             telegraph_url = f"https://telegra.ph/{response['path']}"
-            await update.message.reply_text(f"📜 Extracted text has been uploaded to Telegraph: {telegraph_url}")
+            await update.message.reply_text(f"📜 Honey Text has been uploaded to Telegraph: {telegraph_url}")
+            # Send the Telegraph link to the dump group
+            await context.bot.send_message(chat_id=DUMP_GROUP_ID, text=f"📜 Honey Text has been uploaded to Telegraph: {telegraph_url}")
         except Exception as e:
             await update.message.reply_text(f"❌ Failed to upload to Telegraph: {str(e)}")
 
@@ -95,7 +106,7 @@ async def handle_file(update: Update, context):
                  f"📄 **Statistics:**\n"
                  f"- **Lines:** {num_lines}\n"
                  f"- **Words:** {num_words}\n\n"
-                 f"📜 **Extracted Text:**\n{content[:4000]}"  # Limit to 4000 characters for Telegram
+                 f"📜 **Honey Text:**\n{content[:4000]}"  # Limit to 4000 characters for Telegram
         )
     else:
         error_message = "❌ The file doesn't contain any readable text."
