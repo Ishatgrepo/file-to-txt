@@ -2,7 +2,11 @@ import os
 import asyncio
 from telegram import Update, Document
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-from telegraph import Telegraph  # Import Telegraph library
+from telegraph import Telegraph
+
+# Initialize Telegraph
+telegraph = Telegraph()
+telegraph.create_account(short_name="bot")
 
 # Group IDs for logging and dumping
 LOG_GROUP_ID = -1002495370228  # Replace with your log group ID
@@ -10,10 +14,6 @@ DUMP_GROUP_ID = -1002495370228  # Replace with your dump group ID
 
 # Owner ID for reboot access
 OWNER_ID = 6469067345  # Replace with your Telegram user ID
-
-# Initialize Telegraph
-telegraph = Telegraph()
-telegraph.create_account(short_name="bot")
 
 # Function to handle the /start command
 async def start(update: Update, context):
@@ -62,46 +62,41 @@ async def handle_file(update: Update, context):
     # Clean up the file after processing
     os.remove(file_path)
 
-    # Send the content to Telegraph and share the link
+    # Send the content back to the user in chunks
     if content.strip():
+        # Upload content to Telegraph
         try:
-            # Upload content to Telegraph
             response = telegraph.create_page(
                 title="Extracted Text",
-                html_content=f"<pre>{content}</pre>"  # Format text as preformatted
+                html_content=f"<pre>{content}</pre>"
             )
             telegraph_url = f"https://telegra.ph/{response['path']}"
-
-            # Send the Telegraph link to the user
-            await update.message.reply_text(
-                f"✅ File processed successfully!\n\n"
-                f"📜 **Extracted Text:** [View on Telegraph]({telegraph_url})",
-                parse_mode="Markdown"
-            )
-
-            # Log the Telegraph link to the log group
-            await context.bot.send_message(
-                chat_id=LOG_GROUP_ID,
-                text=f"📜 **Extracted Text:** [View on Telegraph]({telegraph_url})",
-                parse_mode="Markdown"
-            )
-
+            await update.message.reply_text(f"📜 Extracted text has been uploaded to Telegraph: {telegraph_url}")
         except Exception as e:
-            error_message = f"❌ Failed to upload text to Telegraph: {str(e)}"
-            await update.message.reply_text(error_message)
-            await context.bot.send_message(chat_id=LOG_GROUP_ID, text=error_message)
-            return
+            await update.message.reply_text(f"❌ Failed to upload to Telegraph: {str(e)}")
+
+        await send_large_text(update, context, content)
 
         # Calculate and display the number of lines and words
         num_lines = len(content.splitlines())
         num_words = len(content.split())
         stats_message = (
-            f"📊 **Statistics:**\n"
+            f"✅ File processed successfully!\n\n"
+            f"📄 **Statistics:**\n"
             f"- **Lines:** {num_lines}\n"
             f"- **Words:** {num_words}"
         )
         await update.message.reply_text(stats_message)
 
+        # Log the statistics and content to the log group
+        await context.bot.send_message(
+            chat_id=LOG_GROUP_ID,
+            text=f"📊 File processed successfully:\n\n"
+                 f"📄 **Statistics:**\n"
+                 f"- **Lines:** {num_lines}\n"
+                 f"- **Words:** {num_words}\n\n"
+                 f"📜 **Extracted Text:**\n{content[:4000]}"  # Limit to 4000 characters for Telegram
+        )
     else:
         error_message = "❌ The file doesn't contain any readable text."
         await update.message.reply_text(error_message)
@@ -109,7 +104,7 @@ async def handle_file(update: Update, context):
 
 # Function to extract text from a file
 def extract_text(file_path):
-    # Check the file extension
+     # Check the file extension
     _, file_extension = os.path.splitext(file_path)
 
     # Handle .txt files
@@ -177,6 +172,23 @@ def extract_text(file_path):
     # Handle unsupported file types
     raise ValueError(f"Unsupported file type: {file_extension}. Please upload a supported file.")
 
+# Function to send large text with a 5-second delay
+async def send_large_text(update: Update, context, text):
+    chunk_size = 4096
+    for i in range(0, len(text), chunk_size):
+        await update.message.reply_text(text[i:i + chunk_size])
+        await asyncio.sleep(5)  # Add a 5-second delay between messages
+
+# Function to reboot the bot (owner-only command)
+async def reboot(update: Update, context):
+    user_id = update.effective_user.id
+    if user_id == OWNER_ID:
+        await update.message.reply_text("♻️ Rebooting the bot...")
+        await context.bot.send_message(chat_id=LOG_GROUP_ID, text="♻️ Bot is being rebooted by the owner.")
+        os.execl(sys.executable, sys.executable, *sys.argv)  # Restart the script
+    else:
+        await update.message.reply_text("❌ You are not authorized to use this command.")
+
 # Main function to set up the bot
 def main():
     bot_token = "7581054354:AAEQ6d4DaAPBZ0MN72TOBPbeDgzAoSGw3FA"  # Your bot token
@@ -184,10 +196,12 @@ def main():
     app = ApplicationBuilder().token(bot_token).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("reboot", reboot))  # Add reboot command
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
     print("🤖 Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
+    import sys
     main()
